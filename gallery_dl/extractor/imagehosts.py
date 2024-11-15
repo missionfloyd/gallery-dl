@@ -11,7 +11,7 @@
 from .common import Extractor, Message
 from .. import text, exception
 from ..cache import memcache
-from os.path import splitext
+from os.path import splitext, basename
 
 
 class ImagehostImageExtractor(Extractor):
@@ -325,3 +325,37 @@ class FappicImageExtractor(ImagehostImageExtractor):
             filename = filename[13:]
 
         return url, filename
+
+
+class ImgwalletImageExtractor(ImagehostImageExtractor):
+    """Extractor for single images from imgwallet.com"""
+    category = "imgwallet"
+    pattern = (r"(?:https?://)?((?:www\.)?img(?:(?:taxi|wallet|adult)"
+               r"\.com|drive\.net)\/(img-[0-9a-f]{13}\.html))")
+    example = "https://imgwallet.com/img-abcdef1234567.html"
+
+    def get_info(self, page):
+        url = text.extr(page, '"og:image" content="', '"')
+        title = text.unescape(text.extr(page, '"og:title" content="', '"'))
+        filename = (title.split(" |")[0] if title.count("|") == 2
+                    else basename(url))
+        return url.replace("/small/", "/big/"), filename
+
+
+class ImgWalletGalleryExtractor(ImagehostImageExtractor):
+    """Extractor for image galleries from imgwallet.com"""
+    category = "imgwallet"
+    subcategory = "gallery"
+    pattern = (r"(?:https?://)?((?:www\.)?img(?:(?:taxi|wallet|adult)"
+               r"\.com|drive\.net)\/((?:gallery|user)-\d+\.html))")
+    example = "https://imgwallet.com/gallery-1234.html"
+
+    def items(self):
+        page = self.request(self.page_url).text
+        pages = int(text.rextract(page,
+                    'href="?p=', '" class="alfabet"')[0] or "1")
+        for i in range(pages + 1):
+            page = self.request(self.page_url, params={"p": i}).text
+            data = {"_extractor": ImgwalletImageExtractor}
+            for url in text.extract_iter(page, "><a href='", "' target='"):
+                yield Message.Queue, url, data
