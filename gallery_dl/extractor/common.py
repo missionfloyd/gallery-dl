@@ -42,6 +42,7 @@ class Extractor():
     ciphers = None
     tls12 = True
     browser = None
+    useragent = util.USERAGENT_FIREFOX
     request_interval = 0.0
     request_interval_min = 0.0
     request_interval_429 = 60.0
@@ -170,8 +171,16 @@ class Extractor():
         while True:
             try:
                 response = session.request(method, url, **kwargs)
-            except (requests.exceptions.ConnectionError,
-                    requests.exceptions.Timeout,
+            except requests.exceptions.ConnectionError as exc:
+                code = 0
+                try:
+                    reason = exc.args[0].reason
+                    cls = reason.__class__.__name__
+                    pre, _, err = str(reason.args[-1]).partition(":")
+                    msg = " {}: {}".format(cls, (err or pre).lstrip())
+                except Exception:
+                    msg = exc
+            except (requests.exceptions.Timeout,
                     requests.exceptions.ChunkedEncodingError,
                     requests.exceptions.ContentDecodingError) as exc:
                 msg = exc
@@ -209,6 +218,11 @@ class Extractor():
                         break
                     if b'name="captcha-bypass"' in content:
                         self.log.warning("Cloudflare CAPTCHA")
+                        break
+                elif server and server.startswith("ddos-guard") and \
+                        code == 403:
+                    if b"/ddos-guard/js-challenge/" in response.content:
+                        self.log.warning("DDoS-Guard challenge")
                         break
 
                 if code == 429 and self._handle_429(response):
@@ -345,6 +359,9 @@ class Extractor():
         headers.clear()
         ssl_options = ssl_ciphers = 0
 
+        # .netrc Authorization headers are alwsays disabled
+        session.trust_env = True if self.config("proxy-env", True) else False
+
         browser = self.config("browser")
         if browser is None:
             browser = self.browser
@@ -378,11 +395,13 @@ class Extractor():
             ssl_ciphers = SSL_CIPHERS[browser]
         else:
             useragent = self.config("user-agent")
-            if useragent is None:
-                useragent = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64; "
-                             "rv:128.0) Gecko/20100101 Firefox/128.0")
+            if useragent is None or useragent == "auto":
+                useragent = self.useragent
             elif useragent == "browser":
                 useragent = _browser_useragent()
+            elif self.useragent is not Extractor.useragent and \
+                    useragent is config.get(("extractor",), "user-agent"):
+                useragent = self.useragent
             headers["User-Agent"] = useragent
             headers["Accept"] = "*/*"
             headers["Accept-Language"] = "en-US,en;q=0.5"
@@ -902,10 +921,11 @@ def _browser_useragent():
 
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    server.bind(("127.0.0.1", 6414))
+    server.bind(("127.0.0.1", 0))
     server.listen(1)
 
-    webbrowser.open("http://127.0.0.1:6414/user-agent")
+    host, port = server.getsockname()
+    webbrowser.open("http://{}:{}/user-agent".format(host, port))
 
     client = server.accept()[0]
     server.close()
@@ -1003,6 +1023,12 @@ SSL_CIPHERS = {
     ),
 }
 
+
+# disable Basic Authorization header injection from .netrc data
+try:
+    requests.sessions.get_netrc_auth = lambda _: None
+except Exception:
+    pass
 
 # detect brotli support
 try:

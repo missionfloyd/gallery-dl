@@ -394,7 +394,11 @@ Default
     * ``"2.0-4.0"``
         ``behance``, ``imagefap``, ``[Nijie]``
     * ``"3.0-6.0"``
-        ``exhentai``, ``idolcomplex``, ``[reactor]``, ``readcomiconline``
+        ``bilibili``,
+        ``exhentai``,
+        ``idolcomplex``,
+        ``[reactor]``,
+        ``readcomiconline``
     * ``"6.0-6.1"``
         ``twibooru``
     * ``"6.0-12.0"``
@@ -596,8 +600,20 @@ Description
       ``scheme://host`` as key.
       See `Requests' proxy documentation`_ for more details.
 
-    Note: If a proxy URLs does not include a scheme,
+    Note: If a proxy URL does not include a scheme,
     ``http://`` is assumed.
+
+
+extractor.*.proxy-env
+---------------------
+Type
+    ``bool``
+Default
+    ``true``
+Description
+    Collect proxy configuration information from environment variables
+    (``HTTP_PROXY``, ``HTTPS_PROXY``, ``NO_PROXY``)
+    and Windows Registry settings.
 
 
 extractor.*.source-address
@@ -1042,7 +1058,8 @@ Description
 extractor.*.postprocessors
 --------------------------
 Type
-    ``list`` of |Postprocessor Configuration|_ objects
+    * |Postprocessor Configuration|_ object
+    * ``list`` of |Postprocessor Configuration|_ objects
 Example
     .. code:: json
 
@@ -1438,7 +1455,10 @@ Type
     * ``string``
     * ``list`` of ``strings``
 Default
-    ``"media"``
+    * ``"posts"`` if
+      `reposts <extractor.bluesky.reposts_>`__ or
+      `quoted <extractor.bluesky.quoted_>`__ is enabled
+    * ``"media"`` otherwise
 Example
     * ``"avatar,background,posts"``
     * ``["avatar", "background", "posts"]``
@@ -1447,6 +1467,7 @@ Description
     when processing a user profile.
 
     Possible values are
+    ``"info"``,
     ``"avatar"``,
     ``"background"``,
     ``"posts"``,
@@ -1732,6 +1753,26 @@ Default
     ``true``
 Description
     Extract ``ask`` posts.
+
+
+extractor.cohost.avatar
+-----------------------
+Type
+    ``bool``
+Default
+    ``false``
+Description
+    Download ``avatar`` images.
+
+
+extractor.cohost.background
+---------------------------
+Type
+    ``bool``
+Default
+    ``false``
+Description
+    Download ``background``/``banner``/``header`` images.
 
 
 extractor.cohost.pinned
@@ -2345,6 +2386,43 @@ Description
     Selects an alternative source to download files from.
 
     * ``"hitomi"``:  Download the corresponding gallery from ``hitomi.la``
+
+
+extractor.exhentai.tags
+-----------------------
+Type
+    ``bool``
+Default
+    ``false``
+Description
+    Group ``tags`` by type and
+    provide them as ``tags_<type>`` metadata fields,
+    for example ``tags_artist`` or ``tags_character``.
+
+
+extractor.facebook.author-followups
+-----------------------------------
+Type
+    ``bool``
+Default
+    ``false``
+description
+    Extract comments that include photo attachments made by the author of the post.
+
+
+extractor.facebook.videos
+-------------------------
+Type
+    * ``bool``
+    * ``string``
+Default
+    ``true``
+Description
+    Control video download behavior.
+
+    * ``true``: Extract and download video & audio separately.
+    * ``"ytdl"``: Let |ytdl| handle video extraction and download, and merge video & audio streams.
+    * ``false``: Ignore videos.
 
 
 extractor.fanbox.comments
@@ -3016,6 +3094,18 @@ Description
     | ``"780"``, ``"980"``, ``"1280"``, ``"1600"``, ``"0"`` (original)
 
 
+extractor.koharu.tags
+---------------------
+Type
+    ``bool``
+Default
+    ``false``
+Description
+    Group ``tags`` by type and
+    provide them as ``tags_<type>`` metadata fields,
+    for example ``tags_artist`` or ``tags_character``.
+
+
 extractor.lolisafe.domain
 -------------------------
 Type
@@ -3376,10 +3466,38 @@ Type
 Default
     ``["images", "image_large", "attachments", "postfile", "content"]``
 Description
-    Determines the type and order of files to be downloaded.
+    Determines types and order of files to download.
 
-    Available types are
-    ``postfile``, ``images``, ``image_large``, ``attachments``, and ``content``.
+    Available types:
+
+    * ``postfile``
+    * ``images``
+    * ``image_large``
+    * ``attachments``
+    * ``content``
+
+
+extractor.patreon.format-images
+-------------------------------
+Type
+    ``string``
+Default
+    ``"download_url"``
+Description
+    Selects the format of ``images`` `files <extractor.patreon.files_>`__.
+
+    Possible formats:
+
+    * ``original``
+    * ``default``
+    * ``default_small``
+    * ``default_blurred``
+    * ``default_blurred_small``
+    * ``thumbnail``
+    * ``thumbnail_large``
+    * ``thumbnail_small``
+    * ``url``
+    * ``download_url``
 
 
 extractor.pillowfort.external
@@ -5096,6 +5214,22 @@ Description
     `youtube-dl's docstrings <https://github.com/ytdl-org/youtube-dl/blob/0153b387e57e0bb8e580f1869f85596d2767fb0d/youtube_dl/YoutubeDL.py#L157>`__
 
 
+extractor.zerochan.extensions
+-----------------------------
+Type
+    * ``string``
+    * ``list`` of ``strings``
+Default
+    ``["jpg", "png", "webp", "gif"]``
+Example
+    * ``"gif"``
+    * ``["webp", "gif", "jpg"}``
+Description
+    List of filename extensions to try when dynamically building download URLs
+    (`"pagination": "api" <extractor.zerochan.pagination_>`__ +
+    `"metadata": false <extractor.zerochan.metadata_>`__)
+
+
 extractor.zerochan.metadata
 ---------------------------
 Type
@@ -5140,8 +5274,9 @@ Type
 Default
     ``false``
 Description
-    Categorize tags by their respective types
-    and provide them as ``tags_<type>`` metadata fields.
+    Group ``tags`` by type and
+    provide them as ``tags_<type>`` metadata fields,
+    for example ``tags_artist`` or ``tags_character``.
 
     Note: This requires 1 additional HTTP request per post.
 
@@ -6855,13 +6990,22 @@ Description
 filters-environment
 -------------------
 Type
-    ``bool``
+    * ``bool``
+    * ``string``
 Default
     ``true``
 Description
-    Evaluate filter expressions raising an exception as ``false``
-    instead of aborting the current extractor run
-    by wrapping them in a `try`/`except` block.
+    Evaluate filter expressions in a special environment
+    preventing them from raising fatal exceptions.
+
+    ``true`` or ``"tryexcept"``:
+        Wrap expressions in a `try`/`except` block;
+        Evaluate expressions raising an exception as ``false``
+    ``false`` or ``"raw"``:
+        Do not wrap expressions in a special environment
+    ``"defaultdict"``:
+        Prevent exceptions when accessing undefined variables
+        by using a `defaultdict <https://docs.python.org/3/library/collections.html#collections.defaultdict>`__
 
 
 format-separator

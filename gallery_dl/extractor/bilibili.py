@@ -14,6 +14,7 @@ class BilibiliExtractor(Extractor):
     """Base class for bilibili extractors"""
     category = "bilibili"
     root = "https://www.bilibili.com"
+    request_interval = (3.0, 6.0)
 
     def _init(self):
         self.api = BilibiliAPI(self)
@@ -22,7 +23,8 @@ class BilibiliExtractor(Extractor):
 class BilibiliUserArticlesExtractor(BilibiliExtractor):
     """Extractor for a bilibili user's articles"""
     subcategory = "user-articles"
-    pattern = r"(?:https?://)?space\.bilibili\.com/(\d+)/article"
+    pattern = (r"(?:https?://)?space\.bilibili\.com/(\d+)"
+               r"/(?:article|upload/opus)")
     example = "https://space.bilibili.com/12345/article"
 
     def items(self):
@@ -55,6 +57,13 @@ class BilibiliArticleExtractor(BilibiliExtractor):
         article["username"] = modules["module_author"]["name"]
 
         pics = []
+
+        if "module_top" in modules:
+            try:
+                pics.extend(modules["module_top"]["display"]["album"]["pics"])
+            except Exception:
+                pass
+
         for paragraph in modules['module_content']['paragraphs']:
             if "pic" not in paragraph:
                 continue
@@ -102,6 +111,14 @@ class BilibiliAPI():
 
     def article(self, article_id):
         url = "https://www.bilibili.com/opus/" + article_id
-        response = self.extractor.request(url)
-        return util.json_loads(text.extr(
-            response.text, "window.__INITIAL_STATE__=", "};") + "}")
+
+        while True:
+            page = self.extractor.request(url).text
+            try:
+                return util.json_loads(text.extr(
+                    page, "window.__INITIAL_STATE__=", "};") + "}")
+            except Exception:
+                if "window._riskdata_" not in page:
+                    raise exception.StopExtraction(
+                        "%s: Unable to extract INITIAL_STATE data", article_id)
+            self.extractor.wait(seconds=300)
