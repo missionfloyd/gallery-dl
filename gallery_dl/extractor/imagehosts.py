@@ -411,7 +411,7 @@ class ImgdriveGalleryExtractor(ImagehostImageExtractor):
     category = "imgdrive"
     subcategory = "gallery"
     pattern = (r"(?:https?://)?(?:www\.)?(img(adult|drive|taxi|wallet)"
-               r"\.(?:com|net)/(?:gallery|user)-(\d+)\.html)")
+               r"\.(?:com|net)/((?:gallery|user)-\d+)\.html)")
     example = "https://imgdrive.com/gallery-1234.html"
 
     def __init__(self, match):
@@ -426,15 +426,15 @@ class ImgdriveGalleryExtractor(ImagehostImageExtractor):
             page, 'href="?p=', '" class="alfabet"')[0] or "1")
 
         data = {
-            "title": text.extr(page, 'bold">', '</h1>')
+            "title": text.extr(page, 'bold">', '</h1>') or self.token
         }
-        
-        yield Message.Directory, data
 
+        yield Message.Directory, data
         for i in range(pages + 1):
             page = self.request(self.page_url, params={"p": i}).text
-            for url, filename in text.re(
-                r"img src='(.+?)' alt='(.+?) image hosted at").findall(page):
+            images = text.re(
+                r"img src='(.+?)' alt='(.+?) image hosted at").findall(page)
+            for url, filename in images:
                 url = url.replace("/small/", "/big/")
                 yield Message.Url, url, text.nameext_from_url(filename)
 
