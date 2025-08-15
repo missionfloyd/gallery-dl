@@ -425,13 +425,18 @@ class ImgdriveGalleryExtractor(ImagehostImageExtractor):
         pages = int(text.rextract(
             page, 'href="?p=', '" class="alfabet"')[0] or "1")
 
+        data = {
+            "title": text.extr(page, 'bold">', '</h1>')
+        }
+        
+        yield Message.Directory, data
+
         for i in range(pages + 1):
             page = self.request(self.page_url, params={"p": i}).text
             for url, filename in text.re(
                 r"img src='(.+?)' alt='(.+?) image hosted at").findall(page):
-                data = text.nameext_from_url(filename)
-                yield Message.Directory, data
-                yield Message.Url, url, data
+                url = url.replace("/small/", "/big/")
+                yield Message.Url, url, text.nameext_from_url(filename)
 
 
 class SilverpicImageExtractor(ImagehostImageExtractor):
