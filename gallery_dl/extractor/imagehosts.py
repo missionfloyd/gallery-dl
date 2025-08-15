@@ -210,26 +210,6 @@ class ImagetwistGalleryExtractor(ImagehostImageExtractor):
             yield Message.Queue, root + path, data
 
 
-class ImgadultImageExtractor(ImagehostImageExtractor):
-    """Extractor for single images from imgadult.com"""
-    category = "imgadult"
-    _cookies = {"img_i_d": "1"}
-    pattern = r"(?:https?://)?((?:www\.)?imgadult\.com/img-([0-9a-f]+)\.html)"
-    example = "https://imgadult.com/img-0123456789abc.html"
-
-    def get_info(self, page):
-        url , pos = text.extract(page, "' src='", "'")
-        name, pos = text.extract(page, "alt='", "'", pos)
-
-        if name:
-            name, _, rhs = name.rpartition(" image hosted at ImgAdult.com")
-            if not name:
-                name = rhs
-            name = text.unescape(name)
-
-        return url, name
-
-
 class ImgspiceImageExtractor(ImagehostImageExtractor):
     """Extractor for single images from imgspice.com"""
     category = "imgspice"
@@ -408,8 +388,8 @@ class PicstateImageExtractor(ImagehostImageExtractor):
 class ImgdriveImageExtractor(ImagehostImageExtractor):
     """Extractor for single images from imgdrive.net"""
     category = "imgdrive"
-    pattern = (r"(?:https?://)?(?:www\.)?(img(drive|taxi|wallet)\.(?:com|net)"
-               r"/img-(\w+)\.html)")
+    pattern = (r"(?:https?://)?(?:www\.)?(img(adult|drive|taxi|wallet)"
+               r"\.(?:com|net)/img-(\w+)\.html)")
     example = "https://imgdrive.net/img-0123456789abc.html"
 
     def __init__(self, match):
@@ -424,6 +404,34 @@ class ImgdriveImageExtractor(ImagehostImageExtractor):
         image, pos = text.extract(
             page, 'property="og:image" content="', '"', pos)
         return image.replace("/small/", "/big/"), title.rsplit(" | ", 2)[0]
+
+
+class ImgdriveGalleryExtractor(ImagehostImageExtractor):
+    """Extractor for image galleries from imgdrive.com"""
+    category = "imgdrive"
+    subcategory = "gallery"
+    pattern = (r"(?:https?://)?(?:www\.)?(img(adult|drive|taxi|wallet)"
+               r"\.(?:com|net)/(?:gallery|user)-(\d+)\.html)")
+    example = "https://imgdrive.com/gallery-1234.html"
+
+    def __init__(self, match):
+        path, category, self.token = match.groups()
+        self.page_url = f"https://{path}"
+        self.category = f"img{category}"
+        Extractor.__init__(self, match)
+
+    def items(self):
+        page = self.request(self.page_url).text
+        pages = int(text.rextract(
+            page, 'href="?p=', '" class="alfabet"')[0] or "1")
+
+        for i in range(pages + 1):
+            page = self.request(self.page_url, params={"p": i}).text
+            for url, filename in text.re(
+                r"img src='(.+?)' alt='(.+?) image hosted at").findall(page):
+                data = text.nameext_from_url(filename)
+                yield Message.Directory, data
+                yield Message.Url, url, data
 
 
 class SilverpicImageExtractor(ImagehostImageExtractor):
