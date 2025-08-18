@@ -426,6 +426,39 @@ class ImgdriveImageExtractor(ImagehostImageExtractor):
         return image.replace("/small/", "/big/"), title.rsplit(" | ", 2)[0]
 
 
+class ImgdriveGalleryExtractor(ImagehostImageExtractor):
+    """Extractor for image galleries from imgdrive.com"""
+    category = "imgdrive"
+    subcategory = "gallery"
+    pattern = (r"(?:https?://)?(?:www\.)?(img(adult|drive|taxi|wallet)"
+               r"\.(?:com|net)/((?:gallery|user)-\d+)\.html)")
+    example = "https://imgdrive.com/gallery-1234.html"
+
+    def __init__(self, match):
+        path, category, self.token = match.groups()
+        self.page_url = f"https://{path}"
+        self.category = f"img{category}"
+        Extractor.__init__(self, match)
+
+    def items(self):
+        page = self.request(self.page_url).text
+        pages = int(text.rextract(
+            page, 'href="?p=', '" class="alfabet"')[0] or "1")
+
+        data = {
+            "title": text.extr(page, 'bold">', '</h1>') or self.token
+        }
+
+        yield Message.Directory, data
+        for i in range(pages + 1):
+            page = self.request(self.page_url, params={"p": i}).text
+            images = text.re(
+                r"img src='(.+?)' alt='(.+?) image hosted at").findall(page)
+            for url, filename in images:
+                url = url.replace("/small/", "/big/")
+                yield Message.Url, url, text.nameext_from_url(filename)
+
+
 class SilverpicImageExtractor(ImagehostImageExtractor):
     """Extractor for single images from silverpic.com"""
     category = "silverpic"
