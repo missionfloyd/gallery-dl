@@ -49,25 +49,33 @@ class EveriaPostExtractor(EveriaExtractor):
     example = "https://everia.club/0000/00/00/TITLE"
 
     def items(self):
-        url = self.root + self.groups[0] + "/"
+        return self._pagination(self.groups[0])
+
+    def _pagination(self, path):
+        url = f"{self.root}{path}/"
         page = self.request(url).text
-        content = text.extr(page, 'itemprop="text">', "<h3")
-        urls = text.re(r'img.*?lazy-src="([^"]+)').findall(content)
+        pages = int(text.rextr(page, 'class="page-number">', "</span>"))
+        
+        for i in range(pages):
+            if i:
+                pageurl = f"{self.root}{path}/{i + 1}"
+                page = self.request(pageurl).text
+            urls = text.re(r'img decoding="async".*?src="([^"]+)').findall(page)
 
-        data = {
-            "title": text.unescape(
-                text.extr(page, 'itemprop="headline">', "</h")),
-            "tags": list(text.extract_iter(page, 'rel="tag">', "</a>")),
-            "post_url": text.unquote(url),
-            "post_category": text.extr(
-                page, "post-in-category-", " ").capitalize(),
-            "count": len(urls),
-        }
+            data = {
+                "title": text.unescape(
+                    text.extr(page, 'itemprop="headline">', "</h")),
+                "tags": list(text.extract_iter(page, 'rel="tag">', "</a>")),
+                "post_url": text.unquote(url),
+                "post_category": text.extr(
+                    page, "post-in-category-", " ").capitalize(),
+                "count": len(urls),
+            }
 
-        yield Message.Directory, "", data
-        for data["num"], url in enumerate(urls, 1):
-            url = text.unquote(url)
-            yield Message.Url, url, text.nameext_from_url(url, data)
+            yield Message.Directory, "", data
+            for data["num"], url in enumerate(urls, 1):
+                url = text.unquote(url)
+                yield Message.Url, url, text.nameext_from_url(url, data)
 
 
 class EveriaTagExtractor(EveriaExtractor):
